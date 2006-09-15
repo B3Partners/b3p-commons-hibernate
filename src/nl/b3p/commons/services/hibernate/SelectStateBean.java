@@ -4,11 +4,12 @@
 
 package nl.b3p.commons.services.hibernate;
 import java.io.ByteArrayOutputStream;
-import java.io.FileWriter;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -19,7 +20,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import javax.servlet.http.HttpServletRequest;
+import javax.xml.transform.Result;
+import javax.xml.transform.Source;
 import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.sax.SAXResult;
+import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.sax.SAXTransformerFactory;
 import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.transform.stream.StreamResult;
@@ -32,13 +38,18 @@ import org.apache.struts.action.ActionMapping;
 import org.apache.struts.action.ActionMessages;
 import org.apache.struts.util.MessageResources;
 import org.apache.struts.validator.DynaValidatorForm;
-import org.exolab.castor.xml.MarshalException;
 import org.exolab.castor.xml.Marshaller;
-import org.exolab.castor.xml.ValidationException;
 import org.hibernate.HibernateException;
 import org.hibernate.Query;
 import org.hibernate.Session;
 
+import org.apache.avalon.framework.logger.Log4JLogger;
+import org.apache.fop.messaging.MessageHandler;
+import org.apache.log4j.Logger;
+import org.exolab.castor.xml.MarshalException;
+import org.exolab.castor.xml.ValidationException;
+import org.apache.fop.apps.Driver;
+import org.xml.sax.InputSource;
 
 
 
@@ -51,6 +62,7 @@ import org.hibernate.Session;
 public class SelectStateBean extends FormBaseBean {
     
     protected Log log = LogFactory.getLog(this.getClass());
+    protected static Logger fopLogger = Logger.getLogger("fop");
     
     /*
      * rapport type constanten
@@ -59,6 +71,16 @@ public class SelectStateBean extends FormBaseBean {
     public static final String XSL = "xsl";
     public static final String PDF = "pdf";
     public static final String XML = "xml";
+    
+    public static final String SEARCH_ACTION = "Search";
+    public static final String SELECT_ACTION = "Select";
+    public static final String REPORT_ACTION = "Report";
+    public static final String SEARCH_BUTTON = "search";
+    public static final String SELECT_BUTTON = "select";
+    public static final String REPORT_BUTTON = "report";
+    
+    public static final int MAX_CRIT_LENGTH = 254;
+    public static String defaultSearchField = "";
     
     private static Map contentTypes = new HashMap();
     static {
@@ -84,22 +106,11 @@ public class SelectStateBean extends FormBaseBean {
     protected String xslHttpPath = null;
     protected String xslFilePath = null;
     
-    public static final String SEARCH_ACTION = "Search";
-    public static final String SELECT_ACTION = "Select";
-    public static final String REPORT_ACTION = "Report";
-    public static final String SEARCH_BUTTON = "search";
-    public static final String SELECT_BUTTON = "select";
-    public static final String REPORT_BUTTON = "report";
-    
-    public static final int MAX_CRIT_LENGTH = 254;
-    
-    public static String defaultSearchField = "";
-    
     protected ArrayList selectionList = null;
     protected StringBuffer searchDef = null;
     
-    private StringWriter xmlString = null;
-    private ByteArrayOutputStream byteArray = null;
+    protected StringWriter xmlString = null;
+    protected ByteArrayOutputStream byteArray = null;
     
     public SelectStateBean(HttpServletRequest req,
             DynaValidatorForm dform,
@@ -165,6 +176,8 @@ public class SelectStateBean extends FormBaseBean {
     }
     
     public void createXml(Object rapport) throws B3pCommonsException {
+        byteArray = null;
+        xmlString = new StringWriter();
         Marshaller marshal;
         try {
             marshal = new Marshaller(xmlString);
@@ -176,22 +189,28 @@ public class SelectStateBean extends FormBaseBean {
     
     public void createHtml(Object rapport) throws B3pCommonsException {
         String xslFullPath = findXslFilePath();
-        if (xslFullPath!=null) {
-            SAXTransformerFactory tFactory = (SAXTransformerFactory) SAXTransformerFactory.newInstance();
-            log.debug("transformer used: " + tFactory.getClass().getName());
-            try {
-                TransformerHandler tHandler = tFactory.newTransformerHandler(new StreamSource(xslFullPath));
-                tHandler.setResult(new StreamResult(xmlString));
-                Marshaller marshal = new Marshaller(tHandler);
-                marshal.marshal( rapport );
-            } catch (Exception ex) {
-                throw new B3pCommonsException(ex);
-            }
+        if (xslFullPath==null)
+            return;
+        
+        byteArray = null;
+        xmlString = new StringWriter();
+        SAXTransformerFactory tFactory = (SAXTransformerFactory) SAXTransformerFactory.newInstance();
+        log.debug("transformer used: " + tFactory.getClass().getName());
+        try {
+            TransformerHandler tHandler = tFactory.newTransformerHandler(new StreamSource(xslFullPath));
+            tHandler.setResult(new StreamResult(xmlString));
+            Marshaller marshal = new Marshaller(tHandler);
+            marshal.marshal( rapport );
+        } catch (Exception ex) {
+            throw new B3pCommonsException(ex);
         }
     }
     
     public void createXsl(Object rapport) throws B3pCommonsException {
         String xslFullPath = findXslHttpPath();
+        
+        byteArray = null;
+        xmlString = new StringWriter();
         try {
             Marshaller marshal = new Marshaller(xmlString);
             if (xslFullPath!=null) {
@@ -211,12 +230,80 @@ public class SelectStateBean extends FormBaseBean {
     }
     
     public void createPdf(Object rapport) throws B3pCommonsException {
-        if (log.isDebugEnabled())
-            log.debug("Starting Transformation block...");
+        String xslFullPath = findXslFilePath();
+        if (xslFullPath==null)
+            return;
         
-        String xslFullPath = findXslHttpPath();
-        if (xslFullPath!=null) {
+        xmlString = null;
+        byteArray = new ByteArrayOutputStream();
+        try {
+            
+            File xslFile = new java.io.File(xslFullPath);
+            File xmlPath = new java.io.File(xslFile.getParent());
+            Source xslSource = new SAXSource(new InputSource(new FileInputStream(xslFile)));
+                /* Zorg ervoor dat in de XSL met relatieve URL's bestanden kunnen worden
+                 * geinclude
+                 */
+            xslSource.setSystemId(xmlPath.toURI().toString());
+            
+            /* Zorg ervoor dat fop relatieve URLs vanaf hier resolved... */
+            org.apache.fop.configuration.Configuration.put("baseDir", xmlPath.getCanonicalPath());
+            
+            objectToPDF(rapport, xslSource, byteArray, true);
+        } catch (Exception ex) {
+            throw new B3pCommonsException(ex);
         }
+    }
+    
+    /**
+     * Transformeert een Object dat door Castor kan worden gemarshalled naar
+     * een PDF met behulp van apache-fop.
+     *
+     * @param marshallable Het door Castor te marshallen object
+     * @param xslFopSource Source van het XSL-FO document
+     * @param out Output voor de gegenereerde PDF
+     * @param validateMarshal Of Castor het marshallable object moet valideren of
+     *          het voldoet aan het schema.
+     */
+    public static void objectToPDF(Object marshallable, Source xslFopSource, OutputStream out, boolean validateMarshal)
+    throws TransformerConfigurationException, IOException, MarshalException, ValidationException {
+        
+        /* Deze methode maakt geen gebruik van een tijdelijk XML bestand maar
+         * maakt gebruik van een SAXTransformerFactory die direct de SAX events
+         * van Castor kan afhandelen en kan transformeren met de xslFopSource.
+         * Het resultaat van de transformatie wordt met SAX events direct
+         * doorgestuurd naar de ContentHandler van de Apache FOP Driver.
+         */
+        
+        /* TODO check of optimalizatie van Marshalling zoals beschreven op
+         * http://castor.org/xml-faq.html#How-can-I-speed-up-marshalling/unmarshalling-performance?
+         * zin heeft OF dat Apache FOP zowiezo de meeste tijd inneemt.
+         */
+        
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        
+        if(!transformerFactory.getFeature(SAXTransformerFactory.FEATURE)) {
+            throw new UnsupportedOperationException("SAXTransformerFactory required");
+        }
+        
+        SAXTransformerFactory saxTransformerFactory = (SAXTransformerFactory)transformerFactory;
+        //log.debug("SAXTransformerFactory class: " + saxTransformerFactory.getClass());
+        TransformerHandler transformer = saxTransformerFactory.newTransformerHandler(xslFopSource);
+        
+        Driver driver = new Driver();
+        
+        Log4JLogger logger = new Log4JLogger(fopLogger);
+        driver.setLogger(logger);
+        MessageHandler.setScreenLogger(logger);
+        driver.setRenderer(Driver.RENDER_PDF);
+        driver.setOutputStream(out);
+        
+        Result res = new SAXResult(driver.getContentHandler());
+        transformer.setResult(res);
+        
+        Marshaller marshaller = new Marshaller(transformer);
+        marshaller.setValidation(validateMarshal);
+        marshaller.marshal(marshallable);
     }
     
     protected String findXslFilePath() throws B3pCommonsException {
@@ -248,114 +335,6 @@ public class SelectStateBean extends FormBaseBean {
             throw new B3pCommonsException("xsl file is ongeldig: " + xslHttpPath + xslField);
         return xslHttpPath + xslField;
     }
-    
-    
-//    public StringWriter transformRapport(Object rapport) throws B3pCommonsException {
-//        StringWriter xmlString = new StringWriter();
-//
-//
-//        boolean transformDone = false;
-//        if (log.isDebugEnabled())
-//            log.debug("Starting Transformation block...");
-//
-//        String xslFullPath = findXslFullPath();
-//        if (xslFullPath!=null) {
-//
-//            // Voer transformatie uit indien xsl gedefinieerd
-//            log.debug(" Trying transformation with: " + xslFullPath);
-//
-//            try {
-//                SAXTransformerFactory tFactory = (SAXTransformerFactory) SAXTransformerFactory.newInstance();
-//                log.debug("transformer used: " + tFactory.getClass().getName());
-//                TransformerHandler tHandler = tFactory.newTransformerHandler(new StreamSource(xslFullPath));
-//                tHandler.setResult(new StreamResult(xmlString));
-//                Marshaller marshal = new Marshaller(tHandler);
-//                marshal.marshal( rapport );
-//                transformDone = true;
-//            } catch (TransformerConfigurationException tce) {
-//                log.error("TransformerConfigurationException: " + tce);
-//            } catch (MarshalException me) {
-//                log.error("MarshalException: " + me);
-//            } catch (ValidationException ve) {
-//                log.error("ValidationException: " + ve);
-//            } catch (java.lang.OutOfMemoryError oome) {
-//                xmlString = null;
-//                log.error("OutOfMemoryError: " + oome);
-//            } catch (java.io.IOException ioe) {
-//                xmlString = null;
-//                log.error("IOException: " + ioe);
-//            }
-//
-//            if (transformDone) {
-//                log.debug("   successful with: " + xslFullPath);
-//            } else {
-//                log.debug("   failed with: " + xslFullPath);
-//            }
-//        }
-//
-//        if (!transformDone) {
-//            xmlString = new StringWriter();
-//            // anders voer xml uit
-//            log.debug(" Output XML without transformation");
-//
-//            try {
-//                Marshaller marshal = new Marshaller(xmlString);
-//                if (xslHttpAvailable) {
-//                    String xslURL = getXslHttpPath() + xslField;
-//                    marshal.addProcessingInstruction("xml-stylesheet", "type='text/xsl' href='" + xslURL + "'");
-//                    log.debug(" Adding xsl url to xml for local transformation: " + xslURL);
-//                }
-//                if (xsdField!=null && xsdField.length()>0) {
-//                    String xsdURL = getXslHttpPath() + xsdField;
-//                    marshal.setNoNamespaceSchemaLocation(xsdURL);
-//                }
-//                marshal.setEncoding("ISO-8859-1");
-//                marshal.marshal( rapport );
-//                transformDone = true;
-//            } catch (MarshalException me) {
-//                log.error("MarshalException2: " + me);
-//            } catch (ValidationException ve) {
-//                log.error("ValidationException2: " + ve);
-//            } catch (java.lang.OutOfMemoryError oome) {
-//                xmlString = null;
-//                log.error("OutOfMemoryError2: " + oome);
-//            } catch (java.io.IOException ioe) {
-//                xmlString = null;
-//                log.error("IOException: " + ioe);
-//            }
-//            if (transformDone) {
-//                log.debug("   xml output successful");
-//            } else {
-//                log.debug("   xml output failed");
-//            }
-//        }
-//
-//        log.debug("Finishing Transformation block...");
-//
-//        if (!transformDone) {
-//            FileWriter writer = null;
-//            try {
-//                // Create a File to marshal to
-//                writer = new FileWriter(getXslFilePath() +"/error_output.xml");
-//                Marshaller marshal = new Marshaller(writer);
-//                marshal.marshal( rapport );
-//            } catch (Exception e) {
-//                log.debug("rapport xml kan niet weggeschreven worden! >> " + e.getMessage());
-//            } finally {
-//                if (writer!=null)
-//                    try {
-//                        writer.close();
-//                    } catch (IOException ioe) {}
-//            }
-//            throw new B3pCommonsException("Rapportgeneratie mislukt!");
-//        }
-//
-//        if (xmlString != null && log.isDebugEnabled()) {
-//            log.debug("Output text: " + xmlString.toString().substring(0, 250) + "...");
-//        }
-//
-//        return xmlString;
-//    }
     
     protected ActionForward prepareSelect() {
         // Creeer een hash met de zoektermen
@@ -595,16 +574,12 @@ public class SelectStateBean extends FormBaseBean {
                 Object rapport = sh.addToReport(null, pSelectResult);
                 
                 if (HTML.equalsIgnoreCase(type)) {
-                    byteArray = null;
                     createHtml(rapport);
                 } else if (XSL.equalsIgnoreCase(type)) {
-                    byteArray = null;
                     createXsl(rapport);
                 } else if (PDF.equalsIgnoreCase(type)) {
-                    xmlString = null;
                     createPdf(rapport);
                 } else if (XML.equalsIgnoreCase(type)) {
-                    byteArray = null;
                     createXml(rapport);
                 } else {
                     throw new B3pCommonsException("Onbekend rapport type (xml, html, pdf zijn geldige waarden)! ");
