@@ -106,7 +106,7 @@ public class SelectStateBean extends FormBaseBean {
     protected String xslHttpPath = null;
     protected String xslFilePath = null;
     
-    protected ArrayList selectionList = null;
+    protected Map selectionList = null;
     protected StringBuffer searchDef = null;
     
     protected StringWriter xmlString = null;
@@ -167,7 +167,7 @@ public class SelectStateBean extends FormBaseBean {
         return;
     }
     
-    protected ArrayList preProcess(ArrayList sl, String action, String ppt) {
+    protected Map preProcess(Map sl, String action, String ppt) {
         return sl;
     }
     
@@ -178,9 +178,9 @@ public class SelectStateBean extends FormBaseBean {
     public void createXml(Object rapport) throws B3pCommonsException {
         byteArray = null;
         xmlString = new StringWriter();
-        Marshaller marshal;
         try {
-            marshal = new Marshaller(xmlString);
+            Marshaller marshal = new Marshaller(xmlString);
+            marshal.setEncoding("ISO-8859-1");
             marshal.marshal( rapport );
         } catch (Exception ex) {
             throw new B3pCommonsException(ex);
@@ -339,7 +339,7 @@ public class SelectStateBean extends FormBaseBean {
     protected ActionForward prepareSelect() {
         // Creeer een hash met de zoektermen
         Hashtable tempSearchHash = new Hashtable();
-        selectionList = new ArrayList();
+        selectionList = new HashMap();
         
         // Haal alle request parameters op en kijk of ze een Name/Value paar bevatten
         // dat als zoekterm gebruikt kan worden
@@ -452,7 +452,7 @@ public class SelectStateBean extends FormBaseBean {
                     if (leeg)
                         continue;
                 }
-                selectionList.add(scombi);
+                selectionList.put(k,v);
                 
                 // debug regel
                 if (selectionList.size()>1)
@@ -469,52 +469,7 @@ public class SelectStateBean extends FormBaseBean {
         return null;
     }
     
-    protected String getSearchCriterium(Map scombi, String crit) {
-        Object k = scombi.keySet().toArray()[0];
-        if (k==null)
-            return null;
-        // key moet altijd string zijn
-        if (!(k instanceof String))
-            return null;
-        String key = (String) k;
-        // als key leeg is hoeft nergens op gezocht worden
-        if (key.trim().length()==0)
-            return null;
-        if (!key.equals(crit))
-            return null;
-        
-        Object v = scombi.values().toArray()[0];
-        String retString = null;
-        if (v instanceof String[]) {
-            String[] sa = (String[])v;
-            if (sa.length==0)
-                return null;
-            boolean leeg = true;
-            StringBuffer cv = new StringBuffer();
-            for (int i=0; i<sa.length; i++) {
-                if (sa[i]!=null && sa[i].trim().length()>0) {
-                    if (!leeg)
-                        cv.append(", ");
-                    cv.append(sa[i]);
-                    leeg = false;
-                }
-            }
-            if (leeg)
-                return null;
-            retString = cv.toString();
-        } else if (v instanceof String)
-            retString = (String)v;
-        
-        if (retString != null) {
-            int pos = retString.length();
-            if (pos>MAX_CRIT_LENGTH)
-                pos = MAX_CRIT_LENGTH;
-            return retString.substring(0, pos);
-        }
-        return null;
-    }
-    
-    public ArrayList selectDirect(ArrayList recordsList, ArrayList searchList, SelectHelper sh)
+    public ArrayList selectDirect(ArrayList recordsList, Map searchList, SelectHelper sh)
     throws B3pCommonsException {
         // searchList bestaat uit OLV-beans met fieldname in Label en fieldvalue in Value.
         if (searchList == null)
@@ -541,7 +496,7 @@ public class SelectStateBean extends FormBaseBean {
         return recordsList;
     }
     
-    public ActionForward process() throws B3pCommonsException {
+    public ActionForward process() throws Exception {
         
         if (!isInit)
             throw new B3pCommonsException("Niet geinitialiseerd!");
@@ -553,7 +508,7 @@ public class SelectStateBean extends FormBaseBean {
         }
         
         // Geef override functie preProcess de kans om de selectielijst te bewerken
-        ArrayList preProcessedList = preProcess(selectionList, getAction(), preProcessTag);
+        Map preProcessedList = preProcess(selectionList, getAction(), preProcessTag);
         
         // Alleen zoeken indien geen changeStatus, alt:
         SelectHelper sh = new SelectHelper();
@@ -635,6 +590,37 @@ public class SelectStateBean extends FormBaseBean {
         // Alles is OK
         pForward =  mapping.findForward("success");
         return pForward;
+    }
+    
+    protected String getSearchCriterium(Object v) {
+        String retString = null;
+        if (v instanceof String[]) {
+            String[] sa = (String[])v;
+            if (sa.length==0)
+                return null;
+            boolean leeg = true;
+            StringBuffer cv = new StringBuffer();
+            for (int i=0; i<sa.length; i++) {
+                if (sa[i]!=null && sa[i].trim().length()>0) {
+                    if (!leeg)
+                        cv.append(", ");
+                    cv.append(sa[i]);
+                    leeg = false;
+                }
+            }
+            if (leeg)
+                return null;
+            retString = cv.toString();
+        } else if (v instanceof String)
+            retString = (String)v;
+        
+        if (retString != null) {
+            int pos = retString.length();
+            if (pos>MAX_CRIT_LENGTH)
+                pos = MAX_CRIT_LENGTH;
+            return retString.substring(0, pos);
+        }
+        return null;
     }
     
     protected void createLists() throws B3pCommonsException {}

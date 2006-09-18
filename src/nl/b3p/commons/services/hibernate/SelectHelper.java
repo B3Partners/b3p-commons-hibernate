@@ -13,10 +13,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Hashtable;
 import java.util.Iterator;
-import nl.b3p.commons.services.*;
+import java.util.Map;
 import org.apache.commons.beanutils.BeanUtilsBean;
 import org.apache.commons.beanutils.ConversionException;
-import org.apache.commons.beanutils.ConvertUtils;
 import org.apache.commons.beanutils.ConvertUtilsBean;
 import org.apache.commons.beanutils.Converter;
 import org.apache.commons.beanutils.PropertyUtilsBean;
@@ -38,7 +37,7 @@ public class SelectHelper {
     
     public SelectHelper() {}
     
-    public Query queryBuilder(ArrayList searchList, boolean andNotOr) throws HibernateException {
+    public Query queryBuilder(Map searchList, boolean andNotOr) throws HibernateException {
         return null;
     }
     
