@@ -61,7 +61,7 @@ import org.xml.sax.InputSource;
 
 public class SelectStateBean extends FormBaseBean {
     
-    protected Log log = LogFactory.getLog(this.getClass());
+    protected static Log log = LogFactory.getLog(SelectStateBean.class);
     protected static Logger fopLogger = Logger.getLogger("fop");
     
     /*
@@ -469,7 +469,7 @@ public class SelectStateBean extends FormBaseBean {
         return null;
     }
     
-    public ArrayList selectDirect(ArrayList recordsList, Map searchList, SelectHelper sh)
+    public static ArrayList selectDirect(ArrayList recordsList, Map searchList, SelectHelper sh)
     throws B3pCommonsException {
         // searchList bestaat uit OLV-beans met fieldname in Label en fieldvalue in Value.
         if (searchList == null)
@@ -592,7 +592,7 @@ public class SelectStateBean extends FormBaseBean {
         return pForward;
     }
     
-    protected String getSearchCriterium(Object v) {
+    protected static String getSearchCriterium(Object v) {
         String retString = null;
         if (v instanceof String[]) {
             String[] sa = (String[])v;
