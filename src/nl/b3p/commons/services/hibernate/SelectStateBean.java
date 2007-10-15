@@ -71,6 +71,7 @@ public class SelectStateBean extends FormBaseBean {
     public static final String XSL = "xsl";
     public static final String PDF = "pdf";
     public static final String XML = "xml";
+    public static final String NOT_IMPLEMENTED = "not implemented";            
     
     public static final String SEARCH_ACTION = "Search";
     public static final String SELECT_ACTION = "Select";
