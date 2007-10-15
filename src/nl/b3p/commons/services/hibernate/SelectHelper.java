@@ -98,6 +98,10 @@ public class SelectHelper {
         
         try {
             bub.copyProperties(xo, ho);
+            /* FIXME indien exception optreedt zijn waarschijnlijk nog niet alle 
+             * properties gekopieerd! 
+             * Zijn exceptions niet gewoon echt fouten??
+             */
         } catch (IllegalAccessException iae){
             log.debug("IllegalAccessException: " +  iae.getMessage());
         } catch (IllegalArgumentException  ige){
