@@ -480,7 +480,13 @@ public class SelectStateBean extends FormBaseBean {
         Query q = null;
         try {
             q = sh.queryBuilder(searchList, true);
+            if(log.isDebugEnabled()) {
+                log.debug("about to execute query: " + q.toString());
+            }
             tempList = q.list();
+            if(log.isDebugEnabled()) {
+                log.debug("results: " + tempList.size());
+            }
         } catch (HibernateException he) {
             log.debug("Hibernate error, get list: ",  he);
             throw new B3pCommonsException("Query kan niet worden uitgevoerd", he);
@@ -491,8 +497,6 @@ public class SelectStateBean extends FormBaseBean {
             recordsList = new ArrayList();
         if (tempList!=null && !tempList.isEmpty())
             recordsList.addAll(tempList);
-        if (log.isDebugEnabled())
-            log.debug("select records with query: " + q.toString() + ", found: " + recordsList.size());
         
         return recordsList;
     }
