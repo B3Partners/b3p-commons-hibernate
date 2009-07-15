@@ -71,6 +71,7 @@ public class SelectStateBean extends FormBaseBean {
     public static final String XSL = "xsl";
     public static final String PDF = "pdf";
     public static final String XML = "xml";
+    public static final String CSV = "csv";
     public static final String NOT_IMPLEMENTED = "not implemented";            
     
     public static final String SEARCH_ACTION = "Search";
@@ -484,6 +485,7 @@ public class SelectStateBean extends FormBaseBean {
                 log.debug("about to execute query: " + q.toString());
             }
             tempList = q.list();
+            
             if(log.isDebugEnabled()) {
                 log.debug("results: " + tempList.size());
             }
