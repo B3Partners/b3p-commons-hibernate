@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>nl.b3p</groupId>
     <artifactId>b3p-commons-hibernate</artifactId>
-    <version>4.2.2-SNAPSHOT</version>
+    <version>4.2.2</version>
     <packaging>jar</packaging>
     
     <properties>
@@ -112,7 +112,7 @@
         <connection>scm:git:git@github.com:B3Partners/b3p-commons-hibernate.git</connection>
         <developerConnection>scm:git:git@github.com:B3Partners/b3p-commons-hibernate.git</developerConnection>
         <url>https://github.com/B3Partners/b3p-commons-hibernate</url>
-      <tag>b3p-commons-hibernate-${project.version}</tag>
+      <tag>b3p-commons-hibernate-4.2.2</tag>
     </scm>
     <distributionManagement>
         <repository>
