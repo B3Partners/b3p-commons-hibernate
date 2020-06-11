@@ -39,7 +39,7 @@
         <dependency>
             <groupId>apache-avalon</groupId>
             <artifactId>avalon-framework</artifactId>
-            <version>4.1.5</version>
+            <version>4.1.5-brew</version>
         </dependency>
         <dependency>
             <groupId>log4j</groupId>
